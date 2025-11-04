@@ -8,10 +8,10 @@ echo "[smoke] Generating synthetic scenes"
 python "$ROOT/stg_light_eval/synthetic/generate_scenes.py" --out "$ROOT/data/synth" --n 6 --frames 10
 
 echo "[smoke] Downloading LLFF subset"
-python "$ROOT/stg_light_eval/data/download_llff.py" --out "$ROOT/data/llff" --scenes 3 || echo "[warn] LLFF download failed"
+python -m stg_light_eval.real_data_prep.download_llff --out "$ROOT/data/llff" --scenes 3 || echo "[warn] LLFF download failed"
 
 echo "[smoke] Downloading Cityscapes frames"
-python "$ROOT/stg_light_eval/data/download_cityscapes_frames.py" --out "$ROOT/data/cityscapes" || echo "[warn] Cityscapes download failed"
+python -m stg_light_eval.real_data_prep.download_cityscapes_frames --out "$ROOT/data/cityscapes" || echo "[warn] Cityscapes download failed"
 
 echo "[smoke] Evaluating synthetic scenes"
 if ! python "$ROOT/stg_light_eval/eval/eval_synthetic.py" --data_dir "$ROOT/data/synth" --tables_dir "$ROOT/tables" --baselines_dir "$ROOT/tables/baseline_outputs" --quick; then

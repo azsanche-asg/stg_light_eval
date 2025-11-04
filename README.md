@@ -11,7 +11,7 @@ Lightweight evaluation suite for spatio-temporal scene grammars targeting CVPR-s
 ```
 stg_light_eval/
 ├── synthetic/              # Hooks for synthetic scene generators and toy grammars
-├── data/                   # Dataset wrappers, loaders, and pre-processing scripts
+├── data/                   # Generated datasets and prepared assets
 ├── metrics/                # Metric definitions and aggregation helpers
 ├── eval/                   # Experiment entry points and evaluation orchestrators
 ├── tables/                 # Result tables, LaTeX exports, and logging glue
@@ -22,6 +22,8 @@ stg_light_eval/
     ├── slotattn/           # Slot Attention alignment baselines
     └── pointtracks/        # Point tracking and correspondence baselines
 ```
+
+Scripts for downloading and preparing real datasets are located in `stg_light_eval/real_data_prep/`.
 
 ## Installation
 ```bash
