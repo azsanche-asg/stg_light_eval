@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable, Mapping, Sequence
+import numbers
+from typing import Any, Dict, Iterable, Mapping, Sequence
 
 import numpy as np
 
@@ -46,6 +47,33 @@ def _to_numpy(value: Any) -> np.ndarray:
     return np.asarray(value)
 
 
+def _is_numeric_scalar(value: Any) -> bool:
+    if isinstance(value, numbers.Number):
+        return True
+    if isinstance(value, np.ndarray) and value.shape == () and np.issubdtype(value.dtype, np.number):
+        return True
+    return False
+
+
+def _as_numeric_array(value: Any) -> np.ndarray | None:
+    if isinstance(value, np.ndarray):
+        if not np.issubdtype(value.dtype, np.number):
+            try:
+                value = value.astype(np.float64)
+            except (TypeError, ValueError):
+                return None
+        return value.astype(np.float64)
+    if isinstance(value, (list, tuple)):
+        try:
+            arr = np.asarray(value, dtype=np.float64)
+        except (TypeError, ValueError):
+            return None
+        if not np.issubdtype(arr.dtype, np.number):
+            return None
+        return arr.astype(np.float64)
+    return None
+
+
 def _match_rules(gt_rules: Sequence[Mapping[str, Any]], pred_rules: Sequence[Mapping[str, Any]], tol: Mapping[str, float]) -> int:
     matched = 0
     gt_used = [False] * len(gt_rules)
@@ -63,24 +91,29 @@ def _match_rules(gt_rules: Sequence[Mapping[str, Any]], pred_rules: Sequence[Map
                     compatible = False
                     break
                 pred_val = pred[key]
-                if isinstance(gt_val, (int, float, np.number)) and isinstance(pred_val, (int, float, np.number)):
-                    allowed = tol.get(key, 0.0)
-                    if abs(float(gt_val) - float(pred_val)) > allowed:
-                        compatible = False
-                        break
-                    score += abs(float(gt_val) - float(pred_val))
-                else:
-                    gt_arr = _to_numpy(gt_val)
-                    pred_arr = _to_numpy(pred_val)
-                    if gt_arr.shape != pred_arr.shape:
-                        compatible = False
-                        break
-                    allowed = tol.get(key, 0.0)
-                    diff = float(np.linalg.norm(gt_arr.astype(np.float64) - pred_arr.astype(np.float64)))
+                allowed = tol.get(key, tol["default"]) if "default" in tol else tol.get(key, 0.0)
+                if _is_numeric_scalar(gt_val) and _is_numeric_scalar(pred_val):
+                    diff = abs(float(gt_val) - float(pred_val))
                     if diff > allowed:
                         compatible = False
                         break
                     score += diff
+                else:
+                    gt_arr = _as_numeric_array(gt_val)
+                    pred_arr = _as_numeric_array(pred_val)
+                    if gt_arr is not None and pred_arr is not None:
+                        if gt_arr.shape != pred_arr.shape:
+                            compatible = False
+                            break
+                        diff = float(np.linalg.norm(gt_arr - pred_arr))
+                        if diff > allowed:
+                            compatible = False
+                            break
+                        score += diff
+                    else:
+                        if gt_val != pred_val:
+                            compatible = False
+                            break
             if compatible and score < best_score:
                 best_score = score
                 best_idx = idx
@@ -95,7 +128,8 @@ def rule_f1(
     pred_rules: Iterable[Mapping[str, Any]],
     tol: Mapping[str, float] | None = None,
 ) -> tuple[float, float, float]:
-    tol = dict(tol or {"pos": 0.03, "count": 1.0})
+    tol_map: Dict[str, float] = {"default": 1e-3}
+    tol_map.update(tol or {"pos": 0.03, "count": 1.0})
     gt_list = list(gt_rules)
     pred_list = list(pred_rules)
     if not gt_list and not pred_list:
@@ -104,7 +138,7 @@ def rule_f1(
         return 0.0, 1.0, 0.0
     if not pred_list:
         return 1.0, 0.0, 0.0
-    matched = _match_rules(gt_list, pred_list, tol)
+    matched = _match_rules(gt_list, pred_list, tol_map)
     precision = matched / len(pred_list) if pred_list else 0.0
     recall = matched / len(gt_list) if gt_list else 0.0
     if precision + recall == 0:
